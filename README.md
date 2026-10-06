@@ -63,3 +63,7 @@ Use `Actions -> Release JVM SDK` with:
 - `GPG_SECRET_KEY`
 - `GPG_KEY_NAME`
 - `GPG_PASSPHRASE`
+
+### Required secret for private UTEXO dependencies
+
+- `ORG_READ_TOKEN` — PAT with read access to private `UTEXO-Protocol/*` repositories

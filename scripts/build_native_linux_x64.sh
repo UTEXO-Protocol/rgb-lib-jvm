@@ -13,6 +13,7 @@ fi
 
 # Keep cargo cache local to this repository for reproducible CI runs.
 export CARGO_HOME="${ROOT_DIR}/.cargo-home"
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
 mkdir -p "${CARGO_HOME}"
 
 cd "${CFFI_DIR}"
