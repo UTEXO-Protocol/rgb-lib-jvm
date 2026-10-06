@@ -50,9 +50,11 @@ publishing {
     publications {
         create<MavenPublication>("mavenJava") {
             from(components["java"])
-            artifact(tasks.named("packageNativeLinuxX64")) {
-                classifier = "linux-x86_64-native"
-                extension = "tar.gz"
+            if (providers.gradleProperty("PUBLISH_NATIVE_BUNDLE").orElse("false").get() == "true") {
+                artifact(tasks.named("packageNativeLinuxX64")) {
+                    classifier = "linux-x86_64-native"
+                    extension = "tar.gz"
+                }
             }
             groupId = providers.gradleProperty("GROUP_ID").orElse(group.toString()).get()
             artifactId = providers.gradleProperty("ARTIFACT_ID").orElse("rgb-lib-jvm").get()

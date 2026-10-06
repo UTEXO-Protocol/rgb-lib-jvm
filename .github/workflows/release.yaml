@@ -158,6 +158,7 @@ jobs:
             -PVERSION_NAME="${{ needs.resolve.outputs.version }}" \
             -PGROUP_ID="${{ vars.MAVEN_GROUP_ID || 'com.utexo' }}" \
             -PARTIFACT_ID="${{ vars.MAVEN_ARTIFACT_ID || 'rgb-lib-jvm' }}" \
+            -PPUBLISH_NATIVE_BUNDLE=true \
             -PpublishGithubPackages=true \
             --stacktrace
 
