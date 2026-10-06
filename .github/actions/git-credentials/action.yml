@@ -1,0 +1,17 @@
+name: Configure git credentials
+description: Configure token-based git credentials for private UTEXO repositories
+
+inputs:
+  token:
+    description: Personal access token with read access to UTEXO private repositories
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Configure credentials
+      shell: bash
+      run: |
+        git config --global \
+          url."https://x-access-token:${{ inputs.token }}@github.com/UTEXO-Protocol/".insteadOf \
+          "https://github.com/UTEXO-Protocol/"
