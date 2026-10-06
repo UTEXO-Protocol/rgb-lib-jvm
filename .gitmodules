@@ -1,0 +1,4 @@
+[submodule "vendor/rgb-lib"]
+	path = vendor/rgb-lib
+	url = https://github.com/UTEXO-Protocol/rgb-lib.git
+	branch = dev

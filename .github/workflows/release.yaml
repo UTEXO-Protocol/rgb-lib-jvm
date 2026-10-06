@@ -1,0 +1,211 @@
+name: Release JVM SDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.1.0 or 0.1.0-beta.1)"
+        required: true
+        type: string
+      publish_mode:
+        description: "Where to publish artifacts"
+        required: true
+        default: "none"
+        type: choice
+        options:
+          - none
+          - github
+          - central
+          - both
+      rgb_lib_ref:
+        description: "Branch/tag/sha for vendor/rgb-lib submodule"
+        required: false
+        default: "dev"
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  resolve:
+    name: Resolve inputs
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      publish_mode: ${{ steps.resolve.outputs.publish_mode }}
+      rgb_lib_ref: ${{ steps.resolve.outputs.rgb_lib_ref }}
+    steps:
+      - name: Resolve values
+        id: resolve
+        run: |
+          RAW_VERSION="${{ inputs.version }}"
+          VERSION="$(echo "${RAW_VERSION}" | sed -E 's/^[[:space:]]*v?//; s/[[:space:]]+$//')"
+          if [[ -z "${VERSION}" ]]; then
+            echo "Resolved version is empty. Provided input: '${RAW_VERSION}'"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "publish_mode=${{ inputs.publish_mode }}" >> "$GITHUB_OUTPUT"
+          echo "rgb_lib_ref=${{ inputs.rgb_lib_ref }}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and package
+    runs-on: ubuntu-latest
+    needs: resolve
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Update rgb-lib submodule ref
+        run: |
+          REF="${{ needs.resolve.outputs.rgb_lib_ref }}"
+          cd vendor/rgb-lib
+          git fetch origin
+          git checkout "${REF}"
+          cd ../..
+          git submodule status
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+
+      - name: Build package
+        env:
+          VERSION_NAME: ${{ needs.resolve.outputs.version }}
+        run: |
+          gradle clean build \
+            -PVERSION_NAME="${VERSION_NAME}" \
+            -PGROUP_ID="${{ vars.MAVEN_GROUP_ID || 'com.utexo' }}" \
+            -PARTIFACT_ID="${{ vars.MAVEN_ARTIFACT_ID || 'rgb-lib-jvm' }}" \
+            --stacktrace
+
+      - name: Upload build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: jvm-build
+          if-no-files-found: error
+          path: |
+            build/libs/*
+            build/native-bundle/*.tar.gz
+            build/native/linux-x86_64/*
+
+  publish-github:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    needs: [resolve, build]
+    if: needs.resolve.outputs.publish_mode == 'github' || needs.resolve.outputs.publish_mode == 'both'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Update rgb-lib submodule ref
+        run: |
+          REF="${{ needs.resolve.outputs.rgb_lib_ref }}"
+          cd vendor/rgb-lib
+          git fetch origin
+          git checkout "${REF}"
+          cd ../..
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gradle publish \
+            -PVERSION_NAME="${{ needs.resolve.outputs.version }}" \
+            -PGROUP_ID="${{ vars.MAVEN_GROUP_ID || 'com.utexo' }}" \
+            -PARTIFACT_ID="${{ vars.MAVEN_ARTIFACT_ID || 'rgb-lib-jvm' }}" \
+            -PpublishGithubPackages=true \
+            --stacktrace
+
+  publish-central:
+    name: Publish to Maven Central
+    runs-on: ubuntu-latest
+    needs: [resolve, build]
+    if: needs.resolve.outputs.publish_mode == 'central' || needs.resolve.outputs.publish_mode == 'both'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Update rgb-lib submodule ref
+        run: |
+          REF="${{ needs.resolve.outputs.rgb_lib_ref }}"
+          cd vendor/rgb-lib
+          git fetch origin
+          git checkout "${REF}"
+          cd ../..
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+
+      - name: Publish to Maven Central
+        env:
+          JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.MAVENCENTRAL_USERNAME }}
+          JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.MAVENCENTRAL_PASSWORD }}
+          JRELEASER_GPG_KEY_NAME: ${{ secrets.GPG_KEY_NAME }}
+          JRELEASER_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "${{ secrets.GPG_SECRET_KEY }}" | gpg --batch --import
+          gradle publish \
+            -PVERSION_NAME="${{ needs.resolve.outputs.version }}" \
+            -PGROUP_ID="${{ vars.MAVEN_GROUP_ID || 'com.utexo' }}" \
+            -PARTIFACT_ID="${{ vars.MAVEN_ARTIFACT_ID || 'rgb-lib-jvm' }}" \
+            --stacktrace
+          gradle jreleaserDeploy \
+            -PVERSION_NAME="${{ needs.resolve.outputs.version }}" \
+            -PGROUP_ID="${{ vars.MAVEN_GROUP_ID || 'com.utexo' }}" \
+            -PARTIFACT_ID="${{ vars.MAVEN_ARTIFACT_ID || 'rgb-lib-jvm' }}" \
+            -Pjreleaser.gpg.keyName="${JRELEASER_GPG_KEY_NAME}" \
+            -Pjreleaser.gpg.passphrase="${JRELEASER_GPG_PASSPHRASE}" \
+            --stacktrace --info
