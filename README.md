@@ -9,6 +9,7 @@ from a git submodule.
 - Avoid committing native binaries to git.
 - Build native artifacts from source in CI.
 - Publish JVM artifacts to Maven with selectable release modes.
+- Keep Maven Central releases lean by excluding the large native tarball.
 
 ## Repository model
 
@@ -18,6 +19,7 @@ from a git submodule.
   - `rgblib.h`
   - `rgblib.hpp`
 - JVM artifact embeds Linux x86_64 native library in resources.
+- Optional standalone native tarball is only attached when publishing to GitHub Packages.
 
 ## Local build
 
@@ -46,8 +48,8 @@ Use `Actions -> Release JVM SDK` with:
 - `version`: artifact version
 - `publish_mode`:
   - `none` (build only)
-  - `github` (publish to GitHub Packages)
-  - `central` (publish to Maven Central)
+  - `github` (publish to GitHub Packages, includes standalone native tarball)
+  - `central` (publish to Maven Central, excludes standalone native tarball)
   - `both` (publish to both)
 - `rgb_lib_ref`: branch/tag/sha for the submodule build source
 
